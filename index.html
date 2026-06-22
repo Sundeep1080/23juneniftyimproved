@@ -1753,7 +1753,34 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
   <div style="font-family:var(--mono);font-size:7px;color:var(--text3);padding:6px 0 2px;margin-top:6px">
     💡 Fetches 150 days in 2 requests/stock (100d + 50d) · Rate limited at 3 req/s ·
     Backtest uses breakout entries (Pivot R1 / 10D High) · Tests 25 TP/SL combos per stock ·
-    Adaptive GTT pre-fills optimal values when you click BUY/SELL
+    Adaptive GTT pre-fills optimal values when you click BUY/SELL ·
+    Forward Validation below tracks live trade outcomes vs what the backtest predicted
+  </div>
+
+  <!-- ── Forward Validation: predicted (backtest) vs realized (live) ── -->
+  <div id="bt5mForwardWrap" style="display:none;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      <span style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text2)">🔬 Forward Validation — Backtest vs Reality</span>
+      <span style="font-family:var(--mono);font-size:7px;color:var(--text3)">Only counts trades whose TP/SL came from an adaptive profile</span>
+      <span style="margin-left:auto;display:flex;gap:6px">
+        <button onclick="bt5mExportForward()" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:5px;padding:4px 10px;font-family:var(--mono);font-size:8px;cursor:pointer">⬇ Export</button>
+        <button onclick="bt5mClearForwardLog()" style="background:var(--bg3);color:var(--bear);border:1px solid rgba(220,38,38,.3);border-radius:5px;padding:4px 10px;font-family:var(--mono);font-size:8px;cursor:pointer">🗑 Clear</button>
+      </span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px" id="bt5mForwardCards"></div>
+    <div class="tw" style="max-height:300px;overflow-y:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th><th>Trades</th><th>Wins</th><th>Losses</th>
+            <th>Predicted WR</th><th>Realized WR</th><th>WR Gap</th><th>Exp Gap</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="bt5mForwardBody">
+          <tr><td colspan="9" class="empty">No closed adaptive trades yet — populates automatically as trades close</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -1847,6 +1874,18 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
       <thead><tr><th>Symbol</th><th>Product</th><th>Qty</th><th>Avg ₹</th><th>CMP ₹</th><th>P&amp;L ₹</th><th>P&amp;L %</th><th>Day P&amp;L ₹</th><th>Exit</th></tr></thead>
       <tbody id="brkPosBody"><tr><td colspan="9" class="empty">Click Refresh All to load</td></tr></tbody>
     </table></div>
+    <!-- ── Portfolio Risk — auto-updates when positions load ── -->
+    <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
+      <div class="ct" style="margin-bottom:6px"><i class="fas fa-shield-halved"></i> Portfolio Risk
+        <span style="font-family:var(--mono);font-size:8px;color:var(--text2);font-weight:400;margin-left:8px">Exposure &amp; concentration across all open positions combined</span>
+      </div>
+      <div id="riskCards" style="display:flex;flex-wrap:wrap;gap:8px;padding:4px 0 10px;font-family:var(--mono);font-size:9px"></div>
+      <div id="riskWarnings" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
+      <div class="tw"><table>
+        <thead><tr><th>Sector</th><th>Positions</th><th>Gross Exposure ₹</th><th>% of Portfolio</th><th>Net Direction</th></tr></thead>
+        <tbody id="riskSectorBody"><tr><td colspan="5" class="empty">No open positions</td></tr></tbody>
+      </table></div>
+    </div>
   </div>
 
   <!-- HOLDINGS -->
@@ -6601,7 +6640,7 @@ function updateOmTotal(){
 function calcQtyFromInvestment(){const invest=parseFloat(document.getElementById('omInvest').value)||0,cmp=window._omCmp||0;if(cmp>0&&invest>0){const qty=Math.max(1,Math.floor(invest/cmp));document.getElementById('omQty').value=qty;const actual=(qty*cmp),note=document.getElementById('omInvestNote');if(note)note.textContent=`${qty} shares × ₹${cmp.toFixed(2)} = ₹${actual.toLocaleString('en-IN',{maximumFractionDigits:0})} (leftover ₹${Math.round(invest-actual).toLocaleString('en-IN')})`}updateOmTotal()}
 function adjustInvestment(delta){const inp=document.getElementById('omInvest'),cur=parseFloat(inp.value)||33000;inp.value=Math.max(1000,cur+delta);calcQtyFromInvestment()}
 function omTogglePrice(){const ot=document.getElementById('omOrderType').value,wrap=document.getElementById('omPriceWrap'),inp=document.getElementById('omPrice'),isLimit=ot==='LIMIT'||ot==='SL-M';wrap.style.opacity=isLimit?'1':'0.3';inp.disabled=!isLimit;updateOmTotal()}
-function closeOrderModal(){document.getElementById('orderModal').style.display='none';const btn=document.getElementById('omConfirmBtn');btn.disabled=false;btn.textContent=_omDirection==='BUY'?'Place BUY Order':'Place SELL Order';const el=document.getElementById('omResult');el.style.display='none';el.innerHTML=''}
+function closeOrderModal(){document.getElementById('orderModal').style.display='none';const btn=document.getElementById('omConfirmBtn');btn.disabled=false;btn.textContent=_omDirection==='BUY'?'Place BUY Order':'Place SELL Order';const el=document.getElementById('omResult');el.style.display='none';el.innerHTML='';window._omIsExit=false;window._omExitSym=null;}
 
 async function confirmPlaceOrder(){
   const sym=document.getElementById('omSymbol').textContent,qty=parseInt(document.getElementById('omQty').value)||0;
@@ -6625,6 +6664,15 @@ async function confirmPlaceOrder(){
       const tpLog=orderType==='LIMIT'&&price>0?(isBuyLog?parseFloat((price*1.013).toFixed(2)):parseFloat((price*0.987).toFixed(2))):null;
       const slLog=orderType==='LIMIT'&&price>0?(isBuyLog?parseFloat((price*0.975).toFixed(2)):parseFloat((price*1.025).toFixed(2))):null;
       const logId=logOrder(sym,_omDirection,orderType,qty,price||window._omCmp,tpLog,slLog,oid,null,(allSignals.find(s=>s.symbol===sym)||{}).signal);
+      /* ── GAP 1 FIX: if this was an exit order (from Positions tab EXIT button),
+         find the matching OPEN log record for this symbol and close it with the
+         real confirmed fill price. Without this, exits never reach closeOutTrade
+         and your P&L / self-learning ledger / forward tracking stay blind to them. ── */
+      if(window._omIsExit){
+        const exitPx=price||window._omCmp||0;
+        const matchRec=orderLog.find(r=>r.symbol===sym&&r.status==='OPEN'&&r.id!==logId);
+        if(matchRec)closeOutTrade(matchRec.id,exitPx,'manual_exit');
+      }
       if(orderType==='LIMIT'&&price>0){
         const entryPx=price,isBuy=_omDirection==='BUY';
         const sym2=document.getElementById('omSymbol').textContent||'';
@@ -7067,6 +7115,7 @@ function closeOutTrade(logId, exitPrice, exitReason){
   recalibrateWeights();
   zdLog(`LEDGER: ${rec.symbol} closed ${exitReason} @ ₹${exitPrice} (${pnlPct>0?'+':''}${pnlPct}%) — self-learning updated`);
   toast(`${rec.symbol} closed: ${pnlPct>0?'+':''}${pnlPct}% — learning updated 🧠`, pnlPct>0?'ok':'err');
+  if (rec.bt5m_profile) bt5mLogForwardOutcome(rec, pnlPct, exitReason);
 }
 
 async function checkAndCancelOCO(){
@@ -7086,19 +7135,25 @@ async function checkAndCancelOCO(){
     // If this GTT triggered or was disabled — cancel its partner, and log the real outcome
     if(gtt.status==='triggered'||gtt.status==='disabled'){
       if(gtt.status==='triggered'){
-        // Determine which leg fired (TP or SL) by comparing trigger_values to live LTP —
-        // whichever trigger price LTP is closest to is the one that executed.
+        // GAP 3 FIX: use the confirmed average fill price from the triggered order if
+        // available (gtt.orders[0].average_price), falling back to LTP-proximity estimate
+        // only when fill data isn't present. This eliminates the gap-down SL estimation error.
         const tv=(gtt.condition&&gtt.condition.trigger_values)||[];
         const ltp=zdPrices[pair.sym]||zdPrices['NSE:'+pair.sym];
+        const confirmedFill=gtt.orders&&gtt.orders[0]&&gtt.orders[0].average_price&&gtt.orders[0].average_price>0
+          ?gtt.orders[0].average_price:null;
         let exitPx=null,reason='gtt_unknown';
         if(tv.length===2){
           const [lo,hi]=tv;
-          if(ltp!==undefined){
-            exitPx=Math.abs(ltp-lo)<Math.abs(ltp-hi)?lo:hi;
-            reason=exitPx===hi?'gtt_a_tp':'gtt_a_sl';
-          }else{exitPx=hi;reason='gtt_a_tp';} // fallback: assume TP if LTP unavailable
+          // Determine which leg fired for the reason tag (still needed even when we have fill)
+          let whichLeg;
+          if(confirmedFill){whichLeg=Math.abs(confirmedFill-lo)<Math.abs(confirmedFill-hi)?'sl':'tp';}
+          else if(ltp!==undefined){whichLeg=Math.abs(ltp-lo)<Math.abs(ltp-hi)?'sl':'tp';}
+          else{whichLeg='tp';} // fallback
+          reason=whichLeg==='tp'?'gtt_a_tp':'gtt_a_sl';
+          exitPx=confirmedFill||(whichLeg==='tp'?hi:lo);
         }else if(tv.length===1){
-          exitPx=tv[0];reason='gtt_b_sl';
+          exitPx=confirmedFill||tv[0];reason='gtt_b_sl';
         }
         // Find the orderLog record this GTT belongs to (via gtt_id, or trailState's gttAId)
         const orderRec=orderLog.find(r=>String(r.gtt_id)===String(id)) ||
@@ -7315,7 +7370,7 @@ function loadPnlHistory(){
   try{const ls=localStorage.getItem(PNL_HIST_KEY);if(ls)pnlHistory=JSON.parse(ls)}catch(e){pnlHistory=[]}
   idbGet(PNL_HIST_KEY).then(d=>{if(d&&Array.isArray(d)&&d.length>=pnlHistory.length){pnlHistory=d;zdLog('P&L history loaded: '+pnlHistory.length+' entries')}})
 }
-function logOrder(sym,direction,orderType,qty,entryPrice,tpPrice,slPrice,orderId,gttId,entrySignal){const rec={id:Date.now(),date:new Date().toISOString().slice(0,10),time:new Date().toLocaleTimeString('en-IN'),symbol:sym,direction,orderType,qty,entry_price:entryPrice,tp_price:tpPrice||null,sl_price:slPrice||null,order_id:orderId,gtt_id:gttId||null,entry_signal:entrySignal||null,exit_price:null,exit_date:null,pnl_pct:null,pnl_amt:null,status:'OPEN'};orderLog.unshift(rec);if(orderLog.length>500)orderLog=orderLog.slice(0,500);saveOrderLog();renderOrderLog();return rec.id}
+function logOrder(sym,direction,orderType,qty,entryPrice,tpPrice,slPrice,orderId,gttId,entrySignal,adaptiveProfile){const rec={id:Date.now(),date:new Date().toISOString().slice(0,10),time:new Date().toLocaleTimeString('en-IN'),symbol:sym,direction,orderType,qty,entry_price:entryPrice,tp_price:tpPrice||null,sl_price:slPrice||null,order_id:orderId,gtt_id:gttId||null,entry_signal:entrySignal||null,bt5m_profile:adaptiveProfile||null,exit_price:null,exit_date:null,pnl_pct:null,pnl_amt:null,status:'OPEN'};orderLog.unshift(rec);if(orderLog.length>500)orderLog=orderLog.slice(0,500);saveOrderLog();renderOrderLog();return rec.id}
 function updateOrderExit(logId,exitPrice,status){const rec=orderLog.find(r=>r.id===logId);if(!rec)return;rec.exit_price=exitPrice;rec.exit_date=new Date().toISOString().slice(0,10);rec.status=status||'EXITED';const entryPx=rec.entry_price||0;if(entryPx>0){const rawPct=(rec.direction==='BUY'?(exitPrice-entryPx)/entryPx:(entryPx-exitPrice)/entryPx)*100;rec.pnl_pct=parseFloat(rawPct.toFixed(2));rec.pnl_amt=parseFloat(((exitPrice-entryPx)*(rec.direction==='BUY'?1:-1)*rec.qty).toFixed(0))}saveOrderLog();renderOrderLog()}
 function renderOrderLog(){
   const tb=document.getElementById('orderLogBody');if(!tb)return;
@@ -7327,7 +7382,7 @@ function renderOrderLog(){
     return`<tr><td class="c-dim" style="font-size:8px">${r.date} ${r.time}</td><td><strong>${r.symbol}</strong></td><td>${dirBadge}</td><td class="c-dim">${r.orderType}</td><td class="c-dim">${r.qty}</td><td class="c-amb"><strong>₹${(r.entry_price||0).toFixed(2)}</strong></td><td class="c-bull">${r.tp_price?'₹'+r.tp_price.toFixed(2):'—'}</td><td class="c-bear">${r.sl_price?'₹'+r.sl_price.toFixed(2):'—'}</td><td class="c-dim">${r.exit_price?'₹'+r.exit_price.toFixed(2):'—'}</td><td class="${pnlCls}">${r.pnl_pct!==null?(r.pnl_pct>=0?'+':'')+r.pnl_pct+'%':'—'}</td><td class="${pnlCls}">${r.pnl_amt!==null?'₹'+r.pnl_amt:'—'}</td><td>${statusBadge}</td><td>${r.status==='OPEN'?`<button class="btn btn-d" style="font-size:7px;padding:1px 5px" onclick="markOrderExit(${r.id})">Mark Exit</button> <button class="btn btn-r" style="font-size:7px;padding:1px 5px;margin-top:2px" onclick="markOrderCancelled(${r.id})">Cancel</button>`:'—'}</td></tr>`;
   }).join('');
 }
-function markOrderExit(logId){const px=parseFloat(prompt('Enter exit price:'));if(!px||isNaN(px)){toast('Invalid price','err');return}updateOrderExit(logId,px,'EXITED');toast('Exit recorded','ok')}
+function markOrderExit(logId){const px=parseFloat(prompt('Enter exit price:'));if(!px||isNaN(px)){toast('Invalid price','err');return}closeOutTrade(logId,px,'manual_exit');toast('Exit recorded','ok')}
 function markOrderCancelled(logId){const rec=orderLog.find(r=>r.id===logId);if(!rec)return;rec.status='CANCELLED';saveOrderLog();renderOrderLog();toast('Order marked cancelled','ok')}
 function exportOrderLog(){if(!orderLog.length){toast('No orders to export','err');return}const hdrs=['Date','Time','Symbol','Direction','OrderType','Qty','EntryPrice','TP','SL','ExitPrice','PnL%','PnL_INR','Status','OrderID','GTT_ID'];const rows=orderLog.map(r=>[r.date,r.time,r.symbol,r.direction,r.orderType,r.qty,(r.entry_price||0).toFixed(2),r.tp_price?r.tp_price.toFixed(2):'',r.sl_price?r.sl_price.toFixed(2):'',r.exit_price?r.exit_price.toFixed(2):'',r.pnl_pct!==null?r.pnl_pct:'',r.pnl_amt!==null?r.pnl_amt:'',r.status,r.order_id||'',r.gtt_id||''].join(','));const blob=new Blob([[hdrs.join(','),...rows].join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`nandi_orders_${new Date().toISOString().slice(0,10)}.csv`;a.click();toast('Order log exported','ok')}
 
@@ -7442,7 +7497,7 @@ function renderBrokerSummary(){
   }).join('');
 }
 function renderBrokerOrders(){const tb=document.getElementById('brkOrdersBody');if(!tb)return;const orders=_brokerData.orders;if(!orders.length){tb.innerHTML='<tr><td colspan="9" class="empty">No orders today</td></tr>';return}tb.innerHTML=orders.map(o=>{const sCls=o.status==='COMPLETE'?'c-bull':o.status==='REJECTED'?'c-bear':o.status==='CANCELLED'?'c-dim':'c-amb',dCls=o.transaction_type==='BUY'?'c-bull':'c-bear',t=o.order_timestamp?new Date(o.order_timestamp).toLocaleTimeString('en-IN'):'—';return`<tr><td class="c-dim" style="font-size:8px">${t}</td><td><strong>${o.tradingsymbol}</strong></td><td class="${dCls}"><strong>${o.transaction_type}</strong></td><td class="c-dim">${o.order_type}</td><td>${o.quantity}</td><td class="c-dim">${o.price>0?'₹'+o.price:'MKT'}</td><td class="c-amb">${o.average_price>0?'₹'+o.average_price.toFixed(2):'—'}</td><td class="${sCls}"><strong>${o.status}</strong></td><td class="c-dim" style="font-size:8px">${o.order_id}</td></tr>`}).join('')}
-function renderBrokerPositions(){const tb=document.getElementById('brkPosBody');if(!tb)return;const pos=_brokerData.positions;if(!pos.length){tb.innerHTML='<tr><td colspan="9" class="empty">No open positions</td></tr>';return}tb.innerHTML=pos.map(p=>{const pnl=p.pnl||0,dayPnl=p.day_m2m||0,pnlCls=pnl>=0?'c-bull':'c-bear',dayPnlCls=dayPnl>=0?'c-bull':'c-bear',pct=p.average_price>0?(pnl/Math.abs(p.average_price*p.quantity)*100):0,cmp=p.last_price||0,exitDir=p.quantity>0?'SELL':'BUY',exitQty=Math.abs(p.quantity);return`<tr><td><strong>${p.tradingsymbol}</strong></td><td class="c-dim">${p.product}</td><td class="${p.quantity>0?'c-bull':'c-bear'}">${p.quantity>0?'+':''}${p.quantity}</td><td class="c-dim">₹${(p.average_price||0).toFixed(2)}</td><td>₹${cmp.toFixed(2)}</td><td class="${pnlCls}"><strong>${pnl>=0?'+':''}₹${Math.round(pnl).toLocaleString('en-IN')}</strong></td><td class="${pnlCls}">${pnl>=0?'+':''}${pct.toFixed(2)}%</td><td class="${dayPnlCls}">${dayPnl>=0?'+':''}₹${Math.round(dayPnl).toLocaleString('en-IN')}</td><td><button class="${exitDir==='SELL'?'ob-sell':'ob-buy'}" onclick="exitBrokerPosition('${p.tradingsymbol}','${exitDir}',${cmp},${exitQty},'${p.product}')">${exitDir==='SELL'?'▼ SELL':'▲ BUY'}</button></td></tr>`}).join('')}
+function renderBrokerPositions(){const tb=document.getElementById('brkPosBody');if(!tb)return;const pos=_brokerData.positions;if(!pos.length){tb.innerHTML='<tr><td colspan="9" class="empty">No open positions</td></tr>';renderPortfolioRisk();return}tb.innerHTML=pos.map(p=>{const pnl=p.pnl||0,dayPnl=p.day_m2m||0,pnlCls=pnl>=0?'c-bull':'c-bear',dayPnlCls=dayPnl>=0?'c-bull':'c-bear',pct=p.average_price>0?(pnl/Math.abs(p.average_price*p.quantity)*100):0,cmp=p.last_price||0,exitDir=p.quantity>0?'SELL':'BUY',exitQty=Math.abs(p.quantity);return`<tr><td><strong>${p.tradingsymbol}</strong></td><td class="c-dim">${p.product}</td><td class="${p.quantity>0?'c-bull':'c-bear'}">${p.quantity>0?'+':''}${p.quantity}</td><td class="c-dim">₹${(p.average_price||0).toFixed(2)}</td><td>₹${cmp.toFixed(2)}</td><td class="${pnlCls}"><strong>${pnl>=0?'+':''}₹${Math.round(pnl).toLocaleString('en-IN')}</strong></td><td class="${pnlCls}">${pnl>=0?'+':''}${pct.toFixed(2)}%</td><td class="${dayPnlCls}">${dayPnl>=0?'+':''}₹${Math.round(dayPnl).toLocaleString('en-IN')}</td><td><button class="${exitDir==='SELL'?'ob-sell':'ob-buy'}" onclick="exitBrokerPosition('${p.tradingsymbol}','${exitDir}',${cmp},${exitQty},'${p.product}')">${exitDir==='SELL'?'▼ SELL':'▲ BUY'}</button></td></tr>`}).join('');renderPortfolioRisk();}
 function renderBrokerHoldings(){
   const tb=document.getElementById('brkHldBody');
   const strip=document.getElementById('hldSummaryStrip');
@@ -8021,6 +8076,8 @@ function exportAllPosCSV(){
 function exitBrokerPosition(sym,direction,cmp,qty,product){
   if(!zdLiveMode){toast('Connect Zerodha Kite first','err');return}
   _omDirection=direction;window._omCmp=cmp;
+  window._omIsExit=true;   /* flag: this modal is an exit, not a new entry */
+  window._omExitSym=sym;   /* remember sym so confirmPlaceOrder can match the order log */
   const invest=Math.round(cmp*qty);
   document.getElementById('omSymbol').textContent=sym;document.getElementById('omCmp').textContent='₹'+cmp.toFixed(2);
   document.getElementById('omTp').textContent='—';document.getElementById('omSl').textContent='—';
@@ -12271,9 +12328,11 @@ function mcoZoomClose() {
 
 const BT5M_KEY     = 'nandi_v8_bt5m_profiles';  /* localStorage */
 const BT5M_META    = 'nandi_v8_bt5m_meta';       /* fetch timestamp etc */
+const BT5M_FWD_KEY = 'nandi_v8_bt5m_forward';    /* forward validation log */
 var   _bt5mProfiles = {};    /* {sym: {optTP, optSL, wr, exp, trades, updated}} */
 var   _bt5mAdaptive = false; /* when true: order modal uses per-stock TP/SL */
 var   _bt5mRunning  = false;
+var   _bt5mForwardLog = [];  /* [{symbol, predicted, entry_price, exit_price, pnl_pct, outcome, exit_reason, closed_date}] */
 
 /* ── Init — load from localStorage ── */
 function bt5mInit() {
@@ -12281,8 +12340,13 @@ function bt5mInit() {
     const r = localStorage.getItem(BT5M_KEY);
     if (r) _bt5mProfiles = JSON.parse(r);
   } catch(e) { _bt5mProfiles = {}; }
+  try {
+    const f = localStorage.getItem(BT5M_FWD_KEY);
+    if (f) _bt5mForwardLog = JSON.parse(f);
+  } catch(e) { _bt5mForwardLog = []; }
   bt5mUpdateStatusBar();
   if (Object.keys(_bt5mProfiles).length) bt5mRenderTable();
+  if (_bt5mForwardLog.length) bt5mRenderForwardTable();
 }
 
 function bt5mSaveProfiles() {
@@ -12739,6 +12803,230 @@ function bt5mExport() {
   a.download = 'bt5m_profiles_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
   toast('Profiles exported', 'ok');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FORWARD VALIDATION — predicted (backtest) vs realized (live)
+// Logs every adaptive-GTT trade outcome vs what the backtest said.
+// ═══════════════════════════════════════════════════════════════════
+function bt5mSaveForwardLog() {
+  try {
+    if (_bt5mForwardLog.length > 1000) _bt5mForwardLog = _bt5mForwardLog.slice(-1000);
+    localStorage.setItem(BT5M_FWD_KEY, JSON.stringify(_bt5mForwardLog));
+  } catch(e) {}
+}
+
+function bt5mLogForwardOutcome(rec, pnlPct, exitReason) {
+  var p = rec.bt5m_profile;
+  if (!p) return;
+  _bt5mForwardLog.push({
+    symbol:      rec.symbol,
+    predicted:   { tp: p.tp, sl: p.sl, wr: p.wr, exp: p.exp, trades: p.trades },
+    entry_price: rec.entry_price,
+    exit_price:  rec.exit_price,
+    pnl_pct:     pnlPct,
+    outcome:     pnlPct > 0 ? 'win' : 'loss',
+    exit_reason: exitReason,
+    closed_date: rec.exit_date
+  });
+  bt5mSaveForwardLog();
+  bt5mRenderForwardTable();
+}
+
+function bt5mForwardStats() {
+  var bySym = {};
+  _bt5mForwardLog.forEach(function(e) {
+    if (!bySym[e.symbol]) bySym[e.symbol] = [];
+    bySym[e.symbol].push(e);
+  });
+  var rows = Object.keys(bySym).map(function(sym) {
+    var entries = bySym[sym], n = entries.length;
+    var wins = entries.filter(function(e){ return e.outcome === 'win'; }).length;
+    var realWR  = parseFloat((wins/n*100).toFixed(1));
+    var realExp = parseFloat((entries.reduce(function(s,e){return s+e.pnl_pct;},0)/n).toFixed(3));
+    var predWR  = parseFloat((entries.reduce(function(s,e){return s+e.predicted.wr;},0)/n).toFixed(1));
+    var predExp = parseFloat((entries.reduce(function(s,e){return s+e.predicted.exp;},0)/n).toFixed(3));
+    var wrGap   = parseFloat((realWR  - predWR ).toFixed(1));
+    var expGap  = parseFloat((realExp - predExp).toFixed(3));
+    var status  = n < 5  ? '⚪ Too few trades'
+                : realExp <= 0 && predExp > 0 ? '🔴 Edge not holding'
+                : wrGap < -10 ? '🟡 Drifting below backtest'
+                : '🟢 Holding up';
+    return { sym:sym, n:n, wins:wins, losses:n-wins, realWR:realWR, realExp:realExp, predWR:predWR, predExp:predExp, wrGap:wrGap, expGap:expGap, status:status };
+  });
+  rows.sort(function(a,b){ return b.n - a.n; });
+  var totalN    = _bt5mForwardLog.length;
+  var totalWins = _bt5mForwardLog.filter(function(e){return e.outcome==='win';}).length;
+  var overall   = totalN ? {
+    n: totalN,
+    realWR:  parseFloat((totalWins/totalN*100).toFixed(1)),
+    realExp: parseFloat((_bt5mForwardLog.reduce(function(s,e){return s+e.pnl_pct;},0)/totalN).toFixed(3)),
+    predWR:  parseFloat((_bt5mForwardLog.reduce(function(s,e){return s+e.predicted.wr;},0)/totalN).toFixed(1)),
+    predExp: parseFloat((_bt5mForwardLog.reduce(function(s,e){return s+e.predicted.exp;},0)/totalN).toFixed(3))
+  } : null;
+  return { rows:rows, overall:overall };
+}
+
+function bt5mRenderForwardTable() {
+  var wrap  = document.getElementById('bt5mForwardWrap');
+  var tb    = document.getElementById('bt5mForwardBody');
+  var cards = document.getElementById('bt5mForwardCards');
+  if (!wrap || !tb) return;
+  if (!_bt5mForwardLog.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  var res = bt5mForwardStats(), rows = res.rows, overall = res.overall;
+  if (cards && overall) {
+    var gapClr = (overall.realExp - overall.predExp) >= 0 ? 'var(--bull)' : 'var(--bear)';
+    cards.innerHTML = [
+      { label:'Live trades tracked',        value:overall.n,                                               color:'var(--kite)' },
+      { label:'Realized Win Rate',          value:overall.realWR+'%',                                      color:overall.realWR>=overall.predWR?'var(--bull)':'var(--bear)' },
+      { label:'Backtested WR (avg)',        value:overall.predWR+'%',                                      color:'var(--text2)' },
+      { label:'Realized Avg P&L/trade',    value:(overall.realExp>=0?'+':'')+overall.realExp+'%',         color:gapClr },
+      { label:'Backtest Exp (avg)',         value:(overall.predExp>=0?'+':'')+overall.predExp+'%',         color:'var(--text2)' }
+    ].map(function(c){
+      return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 12px;min-width:95px">'
+        +'<div style="font-family:var(--mono);font-size:7px;color:var(--text3);margin-bottom:2px">'+c.label+'</div>'
+        +'<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:'+c.color+'">'+c.value+'</div></div>';
+    }).join('');
+  }
+  if (!rows.length) { tb.innerHTML='<tr><td colspan="9" class="empty">No closed trades yet</td></tr>'; return; }
+  tb.innerHTML = rows.map(function(r) {
+    var wrClr  = r.wrGap  >= 0 ? 'var(--bull)' : 'var(--bear)';
+    var expClr = r.expGap >= 0 ? 'var(--bull)' : 'var(--bear)';
+    return '<tr>'
+      +'<td><strong style="color:var(--bright)">'+r.sym+'</strong></td>'
+      +'<td style="text-align:center">'+r.n+'</td>'
+      +'<td style="text-align:center;color:var(--bull)">'+r.wins+'</td>'
+      +'<td style="text-align:center;color:var(--bear)">'+r.losses+'</td>'
+      +'<td style="text-align:center">'+r.predWR+'%</td>'
+      +'<td style="text-align:center;font-weight:700">'+r.realWR+'%</td>'
+      +'<td style="text-align:center;color:'+wrClr+'">'+(r.wrGap>0?'+':'')+r.wrGap+'pp</td>'
+      +'<td style="text-align:center;color:'+expClr+'">'+(r.expGap>0?'+':'')+r.expGap+'%</td>'
+      +'<td style="text-align:center;font-size:9px">'+r.status+'</td>'
+      +'</tr>';
+  }).join('');
+}
+
+function bt5mExportForward() {
+  if (!_bt5mForwardLog.length) { toast('No forward-tracked trades yet','err'); return; }
+  var hdr  = ['Symbol','EntryPrice','ExitPrice','PnL%','Outcome','ExitReason','PredWR%','PredExp%','PredTrades','ClosedDate'];
+  var rows = _bt5mForwardLog.map(function(e){
+    return [e.symbol,e.entry_price,e.exit_price,e.pnl_pct,e.outcome,e.exit_reason,e.predicted.wr,e.predicted.exp,e.predicted.trades,e.closed_date].join(',');
+  });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([[hdr.join(','),...rows].join('\n')],{type:'text/csv'}));
+  a.download = 'bt5m_forward_log_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  toast('Forward log exported','ok');
+}
+
+function bt5mClearForwardLog() {
+  if (!confirm('Clear all forward-tracking history? Cannot be undone.')) return;
+  _bt5mForwardLog = [];
+  bt5mSaveForwardLog();
+  bt5mRenderForwardTable();
+  toast('Forward log cleared','info');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PORTFOLIO RISK ENGINE
+// Runs automatically every time positions refresh.
+// Measures total exposure, sector concentration, and max SL drawdown
+// across all open positions together — not one trade at a time.
+// ═══════════════════════════════════════════════════════════════════
+function renderPortfolioRisk() {
+  var cards   = document.getElementById('riskCards');
+  var warnings= document.getElementById('riskWarnings');
+  var secBody = document.getElementById('riskSectorBody');
+  if (!cards || !warnings || !secBody) return;
+
+  var pos = (_brokerData && _brokerData.positions) ? _brokerData.positions : [];
+  if (!pos.length) {
+    cards.innerHTML    = '<span style="color:var(--text3);font-family:var(--mono);font-size:8px">No open positions — updates automatically when positions load.</span>';
+    warnings.innerHTML = '';
+    secBody.innerHTML  = '<tr><td colspan="5" class="empty">No open positions</td></tr>';
+    return;
+  }
+
+  var capital = parseFloat((document.getElementById('capitalInput')||{}).value||0) || 500000;
+  var grossLong=0, grossShort=0, totalPnL=0, maxDrawdown=0;
+  var bySector = {};
+
+  pos.forEach(function(p) {
+    var qty = p.quantity || 0;
+    if (!qty) return;
+    var avg      = p.average_price || 0;
+    var exposure = Math.abs(qty * avg);
+    totalPnL    += (p.pnl || 0);
+    maxDrawdown += exposure * 0.025; /* 2.5% SL proxy per position */
+    if (qty > 0) grossLong  += exposure;
+    else         grossShort += exposure;
+    var sym    = p.tradingsymbol.replace(/\d+[A-Z]{2}\d+$/,'');
+    var sector = (typeof allStockData !== 'undefined' && allStockData[sym] && allStockData[sym].sector) || 'Unknown';
+    if (!bySector[sector]) bySector[sector] = { long:0, short:0, count:0 };
+    bySector[sector].count++;
+    if (qty > 0) bySector[sector].long  += exposure;
+    else         bySector[sector].short += exposure;
+  });
+
+  var grossTotal  = grossLong + grossShort;
+  var netBias     = grossLong - grossShort;
+  var netBiasPct  = grossTotal > 0 ? (netBias / grossTotal * 100) : 0;
+  var drawdownPct = capital   > 0 ? (maxDrawdown / capital * 100) : 0;
+  var pnlPct      = capital   > 0 ? (totalPnL   / capital * 100) : 0;
+  var fmt = function(n){ return '₹'+Math.round(Math.abs(n)).toLocaleString('en-IN'); };
+
+  /* ── Summary cards ── */
+  cards.innerHTML = [
+    { label:'Gross Long',        value:fmt(grossLong),  color:'var(--bull)' },
+    { label:'Gross Short',       value:fmt(grossShort), color:grossShort>0?'var(--bear)':'var(--text3)' },
+    { label:'Net Bias',          value:(netBias>=0?'▲ Long ':'▼ Short ')+Math.abs(netBiasPct).toFixed(0)+'%', color:netBias>=0?'var(--bull)':'var(--bear)' },
+    { label:'Unrealised P&L',    value:(totalPnL>=0?'+':'')+fmt(totalPnL)+' ('+(pnlPct>=0?'+':'')+pnlPct.toFixed(2)+'%)', color:totalPnL>=0?'var(--bull)':'var(--bear)' },
+    { label:'Max SL Drawdown',   value:fmt(maxDrawdown)+' ('+drawdownPct.toFixed(1)+'% of capital)', color:drawdownPct>5?'var(--bear)':drawdownPct>3?'var(--amber)':'var(--bull)' },
+    { label:'Open Positions',    value:pos.filter(function(p){return p.quantity!==0;}).length, color:'var(--kite)' }
+  ].map(function(c){
+    return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 12px;min-width:110px">'
+      +'<div style="font-family:var(--mono);font-size:7px;color:var(--text3);margin-bottom:2px">'+c.label+'</div>'
+      +'<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:'+c.color+'">'+c.value+'</div>'
+      +'</div>';
+  }).join('');
+
+  /* ── Sector table ── */
+  var sectors = Object.keys(bySector).sort(function(a,b){ return (bySector[b].long+bySector[b].short)-(bySector[a].long+bySector[a].short); });
+  secBody.innerHTML = sectors.length ? sectors.map(function(sec){
+    var s=bySector[sec], secExp=s.long+s.short, secPct=grossTotal>0?(secExp/grossTotal*100):0;
+    var dir    = s.long>s.short?'▲ Net Long':s.short>s.long?'▼ Net Short':'↔ Balanced';
+    var dirClr = s.long>s.short?'var(--bull)':s.short>s.long?'var(--bear)':'var(--text2)';
+    var cClr   = secPct>40?'var(--bear)':secPct>25?'var(--amber)':'var(--bull)';
+    return '<tr>'
+      +'<td><strong>'+sec+'</strong></td>'
+      +'<td style="text-align:center">'+s.count+'</td>'
+      +'<td style="text-align:right">'+fmt(secExp)+'</td>'
+      +'<td style="text-align:right;font-weight:700;color:'+cClr+'">'+secPct.toFixed(1)+'%</td>'
+      +'<td style="color:'+dirClr+'">'+dir+'</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="5" class="empty">No sector data</td></tr>';
+
+  /* ── Warnings ── */
+  var warns = [];
+  if (drawdownPct > 5)  warns.push({sev:'red',   msg:'🚨 Max SL drawdown '+drawdownPct.toFixed(1)+'% of capital — if all stops hit simultaneously you breach a 5% daily loss limit. Reduce position sizes.'});
+  else if (drawdownPct > 3) warns.push({sev:'amber', msg:'⚠ Max SL drawdown '+drawdownPct.toFixed(1)+'% of capital — approaching risk limit.'});
+  sectors.forEach(function(sec){
+    var secPct = grossTotal>0?((bySector[sec].long+bySector[sec].short)/grossTotal*100):0;
+    if (secPct>40)      warns.push({sev:'red',   msg:'🚨 Sector concentration: '+secPct.toFixed(0)+'% of exposure in '+sec+' — these positions move together in a sector shock.'});
+    else if (secPct>25) warns.push({sev:'amber', msg:'⚠ '+sec+' is '+secPct.toFixed(0)+'% of total exposure — moderately concentrated.'});
+  });
+  if (Math.abs(netBiasPct)>80) warns.push({sev:'amber', msg:'⚠ Portfolio is '+Math.abs(netBiasPct).toFixed(0)+'% '+(netBias>0?'long':'short')+' — heavily directional. A regime shift hits all positions at once.'});
+  var openCount = pos.filter(function(p){return p.quantity!==0;}).length;
+  if (openCount>15) warns.push({sev:'amber', msg:'⚠ '+openCount+' open positions — tracking exits manually at this size becomes error-prone.'});
+
+  warnings.innerHTML = warns.length
+    ? warns.map(function(w){
+        var bg  = w.sev==='red'?'rgba(220,38,38,.12)':'rgba(245,158,11,.10)';
+        var bdr = w.sev==='red'?'rgba(220,38,38,.4)':'rgba(245,158,11,.4)';
+        return '<div style="background:'+bg+';border:1px solid '+bdr+';border-radius:6px;padding:7px 12px;font-family:var(--mono);font-size:8px;color:var(--text1)">'+w.msg+'</div>';
+      }).join('')
+    : '<div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:6px;padding:7px 12px;font-family:var(--mono);font-size:8px;color:var(--bull)">✅ Portfolio risk looks acceptable — no concentration or drawdown warnings.</div>';
 }
 
 // ═══════════════════════════════════════════════════════════
